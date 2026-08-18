@@ -29,7 +29,7 @@ der Seite muss man sich deshalb erneut anmelden.
    - `http://localhost:5173`
    - `https://<dein-github-name>.github.io` für GitHub Pages
 
-### 2. Google Sheet freigeben
+### 2. Google Sheet freigeben 
 
 Die Tabelle muss für das Google-Konto, mit dem man sich anmeldet, mindestens lesbar freigegeben
 sein. Die Spreadsheet-ID steht im Freigabelink zwischen `/d/` und `/edit`.
