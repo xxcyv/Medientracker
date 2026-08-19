@@ -1,4 +1,4 @@
-import type { DailyEntry, Medium, MediumStats } from './types';
+import type { DailyEntry, MediaGroup, Medium, MediumStats } from './types';
 import type { RawExtraction } from './parseSheet';
 
 /** Groups raw per-line extractions from all sheets into one Medium per unique name. */
@@ -34,6 +34,38 @@ function determineBookUnit(entries: DailyEntry[]): 'chapters' | 'pages' {
   return pageCount > chapterCount ? 'pages' : 'chapters';
 }
 
+/** Merges member media of each group into one synthetic Medium, so they appear and aggregate as one. */
+export function applyMediaGroups(media: Medium[], groups: MediaGroup[]): Medium[] {
+  if (groups.length === 0) return media;
+
+  const groupedNames = new Set<string>();
+  const result: Medium[] = [];
+
+  for (const group of groups) {
+    const members = media.filter((medium) => medium.category === group.category && group.memberNames.includes(medium.name));
+    if (members.length === 0) continue;
+    for (const member of members) groupedNames.add(member.name);
+
+    const entries = members.flatMap((member) => member.entries);
+    const combined: Medium = {
+      name: group.label,
+      category: group.category,
+      entries,
+      groupMembers: members.map((member) => member.name),
+    };
+    if (group.category === 'book') {
+      combined.bookUnit = determineBookUnit(entries);
+    }
+    result.push(combined);
+  }
+
+  for (const medium of media) {
+    if (!groupedNames.has(medium.name)) result.push(medium);
+  }
+
+  return result;
+}
+
 /** Computes the headline and expandable secondary statistics for a medium. */
 export function computeStats(medium: Medium): MediumStats {
   if (medium.category === 'movie') {
@@ -49,8 +81,14 @@ export function computeStats(medium: Medium): MediumStats {
 
   const mainValue = relevantEntries.reduce((sum, entry) => sum + entry.amount, 0);
   const datedEntries = relevantEntries.filter((entry) => entry.date !== null);
-  const daysConsumed = new Set(datedEntries.map((entry) => entry.date)).size;
-  const datedSum = datedEntries.reduce((sum, entry) => sum + entry.amount, 0);
+  // Legacy entries have no exact date but carry their own explicit day count instead.
+  const legacyEntries = relevantEntries.filter((entry) => entry.legacy !== undefined);
+  const daysConsumed =
+    new Set(datedEntries.map((entry) => entry.date)).size +
+    legacyEntries.reduce((sum, entry) => sum + (entry.legacy?.days ?? 0), 0);
+  const datedSum =
+    datedEntries.reduce((sum, entry) => sum + entry.amount, 0) +
+    legacyEntries.reduce((sum, entry) => sum + entry.amount, 0);
 
   return {
     mainValue,

@@ -1,22 +1,35 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { useTheme } from '../theme/ThemeContext';
 
 /** App shell with top bar (user info, sign-out) and bottom navigation, optimized for mobile use. */
 export function Layout() {
   const { user, signOut } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="app-layout">
       <header className="app-header">
-        <h1>Medienkonsum-Tracker</h1>
-        {user && (
-          <div className="app-user">
-            <span>{user.displayName}</span>
-            <button type="button" onClick={() => signOut()}>
-              Abmelden
-            </button>
-          </div>
-        )}
+        <h1>Medientracker</h1>
+        <div className="app-user">
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Zu Tag-Modus wechseln' : 'Zu Nacht-Modus wechseln'}
+            title={theme === 'dark' ? 'Zu Tag-Modus wechseln' : 'Zu Nacht-Modus wechseln'}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+          {user && (
+            <>
+              <span>{user.displayName}</span>
+              <button type="button" onClick={() => signOut()}>
+                Abmelden
+              </button>
+            </>
+          )}
+        </div>
       </header>
 
       <main className="app-content">
@@ -28,7 +41,8 @@ export function Layout() {
           Liste
         </NavLink>
         <NavLink to="/kalender">Kalender</NavLink>
-        <NavLink to="/filter">Filter</NavLink>
+        <NavLink to="/filter">Statistiken</NavLink>
+        <NavLink to="/export">Export</NavLink>
       </nav>
     </div>
   );

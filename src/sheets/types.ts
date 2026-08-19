@@ -14,6 +14,12 @@ export interface DailyEntry {
   episodeNumber?: number;
   /** Original raw text, kept for debugging/troubleshooting parsing issues. */
   raw: string;
+  /**
+   * Only set for entries from the "Legacy" sheet, which has no exact dates: carries the years the
+   * medium was consumed in and the total number of days, so stats can still be computed and the
+   * entry can be excluded from date-based views (calendar, filters, export).
+   */
+  legacy?: { years: number[]; days: number };
 }
 
 /** One tracked instance of a game, series, book or movie, identified uniquely by its name. */
@@ -23,6 +29,16 @@ export interface Medium {
   entries: DailyEntry[];
   /** For books only: whether progress is tracked in chapters or pages. */
   bookUnit?: 'chapters' | 'pages';
+  /** Set only on synthetic media produced by grouping; lists the original names that were merged. */
+  groupMembers?: string[];
+}
+
+/** User-defined grouping of several same-category media into one combined entry for lists and stats. */
+export interface MediaGroup {
+  id: string;
+  category: Category;
+  label: string;
+  memberNames: string[];
 }
 
 /** Computed statistics for a medium, derived from its entries. */

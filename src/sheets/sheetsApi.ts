@@ -9,6 +9,7 @@ interface SheetGrid {
 /** Thrown when the Google Sheets API rejects the request, typically due to an expired token. */
 export class SheetsAuthError extends Error {}
 
+// Thin wrapper around fetch for the Sheets API that turns auth failures into SheetsAuthError.
 async function sheetsFetch(path: string, accessToken: string): Promise<unknown> {
   const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${path}`, {
     headers: { Authorization: `Bearer ${accessToken}` },

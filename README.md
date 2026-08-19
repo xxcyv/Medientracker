@@ -1,7 +1,45 @@
 # Medienkonsum-Tracker
 
-Trackt Videospiele, Serien, Bücher und Filme anhand einer bestehenden Google-Sheets-Tabelle.
+Trackt den Konsum von Videospielen, Serien, Büchern und Filmen anhand einer bestehenden Google-Sheets-Tabelle und bietet einfache Statistiken an.
 Die App ist ein rein statisches React/Vite-Frontend und wird auf GitHub Pages gehostet.
+
+## Funktionen
+
+- **Liste**: Übersicht aller getrackten Medien, per Tab nach Kategorie gefiltert (Videospiele,
+  Serien, Bücher, Filme, oder alle zusammen). Jeder Eintrag zeigt direkt seine Kennzahl passend zur
+  Kategorie an – Gesamtspielzeit bei Spielen, Anzahl geschauter Folgen bei Serien, gelesene Kapitel
+  oder Seiten bei Büchern, Anzahl der Sichtungen bei Filmen. Ein Klick auf einen Eintrag klappt
+  Detailinfos wie konsumierte Tage, Durchschnitt pro Tag und die Jahre, in denen das Medium
+  konsumiert wurde, auf. Über den "Gruppieren"-Modus lassen sich mehrere Medien einer Kategorie
+  (z.B. die Bände einer Buchreihe oder Staffeln einer Serie) zu einem gemeinsamen Eintrag mit einem
+  selbst vergebenen Namen zusammenfassen; ihre Werte werden dann addiert dargestellt. Eine
+  Gruppierung lässt sich jederzeit wieder in ihre einzelnen Medien auflösen. Gruppen werden nur
+  lokal im Browser gespeichert (`localStorage`) und nicht in der Google-Tabelle abgelegt, sind also
+  gerätespezifisch.
+- **Kalender**: Zeigt an, was an welchem Tag konsumiert wurde – wahlweise als Tages-, Wochen- oder
+  Monatsansicht. Jeder Tag mit Einträgen listet die betroffenen Medien mit ihrer jeweiligen
+  Tagesmenge (z.B. Spielzeit, Anzahl gelesener Kapitel oder geschauter Folgen) auf, farblich nach
+  Kategorie hervorgehoben. Über Pfeiltasten lässt sich zum vorherigen bzw. nächsten Zeitraum
+  springen, ein "Heute"-Button kehrt direkt zum aktuellen Datum zurück.
+- **Statistiken**: Stellt den Konsum als Balkendiagramm dar und lässt sich nach Kategorie sowie
+  Zeitraum filtern – etwa die letzten 7 Tage, der aktuelle Monat, die letzten 3 Monate, ein
+  bestimmtes Jahr oder die gesamte Historie. In der Jahresansicht kann die Aufteilung der Balken
+  zusätzlich zwischen Monat, Kalenderwoche und Tag umgeschaltet werden, um Trends unterschiedlich
+  fein aufzulösen.
+- **Export**: Erstellt aus den Gesamtwerten aller Medien einer gewählten Kategorie und eines
+  gewählten Zeitraums (einzelnes Jahr oder gesamte Historie) eine lesbare Textliste, die sich mit
+  einem Klick als `.txt`-Datei herunterladen lässt, z.B. um sie andernorts zu archivieren oder zu
+  teilen.
+- **Legacy-Einträge**: Videospielzeiten aus der Zeit vor der taggenauen Erfassung können über ein
+  separates "Legacy"-Tabellenblatt ohne exakte Daten eingepflegt werden – pro Zeile nur mit den
+  betroffenen Jahren und der Gesamtzahl an Tagen. Diese Einträge fließen in die Gesamtspielzeit und
+  die Liste der konsumierten Jahre eines Mediums ein, tauchen aber mangels Datum nicht im Kalender
+  auf und werden bei Export und Statistiken nicht in zeitlich eingeschränkten Zeiträumen berücksichtigt.
+- **Tag-/Nacht-Modus**: Die Oberfläche übernimmt beim Start automatisch die Systemeinstellung des
+  Geräts und lässt sich jederzeit über einen Button im Header manuell umschalten.
+- **Google-Anmeldung**: Der Zugriff auf die Daten erfolgt ausschließlich über eine Anmeldung mit
+  einem Google-Konto, das lesenden Zugriff auf die konfigurierte Tabelle hat. Es gibt keine eigene
+  Nutzerverwaltung und keine Speicherung von Zugangsdaten durch die App.
 
 ## Architektur
 
@@ -29,7 +67,7 @@ der Seite muss man sich deshalb erneut anmelden.
    - `http://localhost:5173`
    - `https://<dein-github-name>.github.io` für GitHub Pages
 
-### 2. Google Sheet freigeben 
+### 2. Google Sheet freigeben
 
 Die Tabelle muss für das Google-Konto, mit dem man sich anmeldet, mindestens lesbar freigegeben
 sein. Die Spreadsheet-ID steht im Freigabelink zwischen `/d/` und `/edit`.
@@ -71,8 +109,13 @@ Push auf `main` und veröffentlicht sie über GitHub Pages.
 ## Notation in der Google-Tabelle
 
 Die Erkennung der Einträge basiert auf festen Textmustern (siehe
-`src/sheets/notationParsers.ts`), z. B. `"<Name> (<hh>:<mm>h)"` für Spiele oder
+`src/sheets/notationParsers.ts`), z.B. `"<Name> (<hh>:<mm>h)"` für Spiele oder
 `"<Name>: <N> Kapitel gelesen"` für Bücher. Farben werden bewusst nicht ausgewertet.
+
+Das Tabellenblatt `Legacy` folgt einer eigenen Struktur: statt einer `Datum`-Spalte gibt es pro
+Spiel-Block die Spalten `Jahre` (kommagetrennte Liste betroffener Jahre), `Freizeit` (Name in
+gewohnter Notation, ohne Zeitangabe) und `Tage` (Gesamtzahl konsumierter Tage). Nur
+Spiele-Notation wird hier ausgewertet.
 
 ## Häufige Probleme
 
@@ -82,3 +125,4 @@ Die Erkennung der Einträge basiert auf festen Textmustern (siehe
 | `access_denied` | Konto fehlt als Testnutzer | OAuth-Zustimmungsbildschirm prüfen |
 | Tabelle lädt nicht, Fehler 403 | Sheets API nicht aktiviert oder Tabelle nicht freigegeben | API und Tabellenfreigabe prüfen |
 | Nach Reload sind Daten weg | Der Zugriffstoken wird nicht persistiert | Erneut anmelden |
+| Gruppen fehlen auf einem anderen Gerät/Browser | Gruppen werden nur lokal (`localStorage`) gespeichert | Gruppe dort erneut anlegen |

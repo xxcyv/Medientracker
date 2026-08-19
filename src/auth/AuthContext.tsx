@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { googleClientId } from '../config/env';
 
 // Scope needed to read the tracking spreadsheet via the Google Sheets REST API.
@@ -20,6 +20,7 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
+// Loads the Google Identity Services script once, reusing it if it is already present.
 function loadGoogleIdentityServices(): Promise<void> {
   if (window.google?.accounts.oauth2) return Promise.resolve();
 
@@ -41,29 +42,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tokenClient, setTokenClient] = useState<google.accounts.oauth2.TokenClient | null>(null);
+  // Tracks whether the pending token request is the automatic reload check, so a denial doesn't surface as an error.
+  const isSilentAttempt = useRef(false);
 
   useEffect(() => {
     loadGoogleIdentityServices()
       .then(() => {
         if (!googleClientId) throw new Error('VITE_GOOGLE_CLIENT_ID ist nicht konfiguriert.');
-        setTokenClient(
-          window.google.accounts.oauth2.initTokenClient({
-            client_id: googleClientId,
-            scope: `${SHEETS_READONLY_SCOPE} openid email profile`,
-            callback: handleTokenResponse,
-          }),
-        );
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: googleClientId,
+          scope: `${SHEETS_READONLY_SCOPE} openid email profile`,
+          callback: handleTokenResponse,
+        });
+        setTokenClient(client);
+
+        // Try to restore the session without any UI so a page reload doesn't force a fresh login.
+        isSilentAttempt.current = true;
+        client.requestAccessToken({ prompt: 'none' });
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : 'Anmeldung konnte nicht vorbereitet werden.');
-      })
-      .finally(() => {
         setLoading(false);
       });
 
     async function handleTokenResponse(response: google.accounts.oauth2.TokenResponse) {
+      const wasSilentAttempt = isSilentAttempt.current;
+      isSilentAttempt.current = false;
+
       if (response.error || !response.access_token) {
-        setError(response.error_description ?? 'Anmeldung fehlgeschlagen.');
+        // A failed silent attempt just means the user needs to sign in manually; don't show it as an error.
+        if (!wasSilentAttempt) setError(response.error_description ?? 'Anmeldung fehlgeschlagen.');
+        setLoading(false);
         return;
       }
 
@@ -77,6 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({ displayName: profile.name ?? profile.email ?? 'Google-Konto', email: profile.email ?? '' });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Anmeldung fehlgeschlagen.');
+      } finally {
+        setLoading(false);
       }
     }
 
@@ -85,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Starts the interactive Google consent flow to obtain a fresh access token.
   function signIn() {
     setError(null);
     if (!tokenClient) {
@@ -94,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     tokenClient.requestAccessToken({ prompt: 'consent' });
   }
 
+  // Revokes the current access token with Google and clears the local session state.
   async function signOut() {
     if (accessToken && window.google?.accounts.oauth2) {
       await new Promise<void>((resolve) => {

@@ -16,6 +16,8 @@ import { de } from 'date-fns/locale';
 import { useData } from '../../data/DataContext';
 import { buildEntriesByDate } from '../../sheets/calendarUtils';
 import { DayEntriesList } from './DayEntriesList';
+import { CATEGORY_COLORS } from '../../utils/categoryColors';
+import { asyncStateView } from '../../components/AsyncState';
 
 type ViewMode = 'day' | 'week' | 'month';
 
@@ -27,9 +29,10 @@ export function CalendarPage() {
 
   const entriesByDate = useMemo(() => buildEntriesByDate(media), [media]);
 
-  if (loading) return <p>Daten werden geladen…</p>;
-  if (error) return <p role="alert">{error}</p>;
+  const asyncState = asyncStateView(loading, error);
+  if (asyncState) return asyncState;
 
+  // Moves the selected date by one unit (day/week/month) of the current view mode.
   function navigate(direction: -1 | 1) {
     setSelectedDate((current) => {
       if (viewMode === 'day') return addDays(current, direction);
@@ -70,10 +73,12 @@ export function CalendarPage() {
   );
 }
 
+// Formats a date as the yyyy-MM-dd key used to index entriesByDate.
 function toKey(date: Date): string {
   return format(date, 'yyyy-MM-dd');
 }
 
+// Shows the entries for a single day.
 function DayView({ date, entriesByDate }: { date: Date; entriesByDate: ReturnType<typeof buildEntriesByDate> }) {
   return (
     <div className="day-view">
@@ -83,6 +88,7 @@ function DayView({ date, entriesByDate }: { date: Date; entriesByDate: ReturnTyp
   );
 }
 
+// Shows one column per day for the week containing `date`.
 function WeekView({ date, entriesByDate }: { date: Date; entriesByDate: ReturnType<typeof buildEntriesByDate> }) {
   const weekStart = startOfWeek(date, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
@@ -100,6 +106,7 @@ function WeekView({ date, entriesByDate }: { date: Date; entriesByDate: ReturnTy
   );
 }
 
+// Renders a month grid with per-day category dots plus the selected day's entries below.
 function MonthView({
   date,
   entriesByDate,
@@ -119,15 +126,22 @@ function MonthView({
       <div className="month-grid">
         {days.map((day) => {
           const entries = entriesByDate.get(toKey(day)) ?? [];
+          const mediaConsumed = new Map(entries.map((entry) => [entry.mediumName, entry.category]));
           return (
             <button
               key={toKey(day)}
               type="button"
-              className={`month-day ${isSameMonth(day, date) ? '' : 'outside-month'} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+              className={`month-day ${isSameMonth(day, date) ? '' : 'outside-month'} ${isSameDay(day, new Date()) ? 'today' : ''} ${isSameDay(day, date) ? 'selected' : ''}`}
               onClick={() => onSelectDay(day)}
             >
               <span className="month-day-number">{format(day, 'd')}</span>
-              {entries.length > 0 && <span className="month-day-dot" aria-label={`${entries.length} Einträge`} />}
+              {mediaConsumed.size > 0 && (
+                <span className="month-day-dots" aria-label={`${mediaConsumed.size} Einträge`}>
+                  {Array.from(mediaConsumed, ([name, category]) => (
+                    <span key={name} className="month-day-dot" style={{ backgroundColor: CATEGORY_COLORS[category].base }} />
+                  ))}
+                </span>
+              )}
             </button>
           );
         })}

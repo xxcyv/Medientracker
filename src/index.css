@@ -1,10 +1,10 @@
-/* Base theme tokens with automatic light/dark mode support based on system preference. */
+/* Base theme tokens with automatic day/night mode support based on system preference. */
 :root {
-  --bg: #ffffff;
-  --surface: #f5f5f8;
+  --bg: #faf6f1;
+  --surface: #f2ece2;
   --text: #1b1b1f;
   --text-muted: #6b6b76;
-  --border: #e2e2e8;
+  --border: #e4dcd0;
   --accent: #4f6df5;
   --accent-contrast: #ffffff;
   color-scheme: light dark;
@@ -12,7 +12,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #121218;
     --surface: #1c1c24;
     --text: #eceef2;
@@ -21,6 +21,16 @@
     --accent: #7b93ff;
     --accent-contrast: #10101a;
   }
+}
+
+:root[data-theme='dark'] {
+  --bg: #121218;
+  --surface: #1c1c24;
+  --text: #eceef2;
+  --text-muted: #9a9aa5;
+  --border: #2c2c36;
+  --accent: #7b93ff;
+  --accent-contrast: #10101a;
 }
 
 * {
@@ -83,6 +93,12 @@ button.active {
   color: var(--text-muted);
 }
 
+.theme-toggle {
+  padding: 0.4rem 0.6rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .app-content {
   flex: 1;
   padding: 1rem;
@@ -97,6 +113,7 @@ button.active {
   bottom: 0;
   left: 0;
   right: 0;
+  z-index: 20;
   display: flex;
   justify-content: space-around;
   background: var(--surface);
@@ -130,10 +147,15 @@ button.active {
 
 /* Media list */
 .category-filter {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-bottom: 1rem;
+  padding: 0.75rem 0;
+  margin-bottom: 0.25rem;
+  background: var(--bg);
 }
 
 .media-list {
@@ -147,21 +169,38 @@ button.active {
 
 .media-list-item {
   border: 1px solid var(--border);
+  border-left: 4px solid var(--cat-color, var(--border));
   border-radius: 10px;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--cat-color, var(--surface)) 8%, var(--surface));
   overflow: hidden;
 }
 
 .media-list-item-header {
   width: 100%;
   display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+}
+
+.media-select-checkbox {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+}
+
+.media-list-item-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
   justify-content: space-between;
   align-items: center;
   background: none;
   border: none;
-  padding: 0.9rem 1rem;
+  padding: 0;
   font-size: 1rem;
   text-align: left;
+  cursor: pointer;
 }
 
 .media-main-stat {
@@ -192,6 +231,43 @@ button.active {
   text-align: right;
 }
 
+.media-group-info {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.media-group-info p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.grouping-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.grouping-bar input[type='text'] {
+  flex: 1;
+  min-width: 150px;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
 /* Calendar */
 .calendar-controls {
   display: flex;
@@ -219,16 +295,37 @@ button.active {
 .day-entries li {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: 0.75rem;
   padding: 0.5rem 0.75rem;
   background: var(--surface);
   border-radius: 8px;
 }
 
+.day-entry-info {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  overflow: hidden;
+}
+
 .day-entry-category {
-  color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  font-weight: 600;
   white-space: nowrap;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+
+.day-entry-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.day-entry-amount {
+  white-space: nowrap;
+  font-weight: 500;
 }
 
 .week-view {
@@ -264,14 +361,40 @@ button.active {
   border-color: var(--accent);
 }
 
+.month-day:hover:not(.selected) {
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface));
+}
+
+.month-day.selected {
+  background: color-mix(in srgb, var(--accent) 45%, var(--surface));
+  border-color: var(--accent);
+}
+
+.month-day.selected:hover {
+  background: color-mix(in srgb, var(--accent) 55%, var(--surface));
+}
+
+.month-day-dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+  max-width: 28px;
+}
+
 .month-day-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--accent);
 }
 
 /* Filters page */
+.statistic-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
 .filters-controls {
   display: flex;
   flex-wrap: wrap;
@@ -295,21 +418,27 @@ button.active {
 /* Larger screens: constrain and center content, widen week view into columns. */
 @media (min-width: 768px) {
   .week-view {
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: none;
+    grid-template-rows: auto 1fr;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    align-items: start;
   }
 
-  .app-nav {
-    position: static;
-    justify-content: flex-start;
-    gap: 1rem;
-    max-width: 960px;
-    margin: 0 auto;
-    width: 100%;
-    border-top: none;
-    border-bottom: 1px solid var(--border);
+  /* Let each day's heading and entry list become direct grid items, so all
+     headings share row 1 and all lists share row 2 and start at the same height. */
+  .week-day {
+    display: contents;
   }
 
-  .app-content {
-    padding-bottom: 1rem;
+  /* Cap the calendar grid width so day cells stay compact instead of stretching across the page. */
+  .month-grid {
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .month-day-number {
+    font-size: 0.85rem;
   }
 }

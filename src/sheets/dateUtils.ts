@@ -24,6 +24,7 @@ export function parseSheetDate(raw: string, sheetYear: number): string | null {
   return null;
 }
 
+// Validates the month/day range and formats the parts as a zero-padded ISO date string.
 function toIsoDate(year: number, month: number, day: number): string | null {
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   return `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;

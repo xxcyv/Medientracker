@@ -1,3 +1,4 @@
+// Minimal type declarations for the Google Identity Services script loaded at runtime.
 declare namespace google.accounts.oauth2 {
   interface TokenResponse {
     access_token?: string;
