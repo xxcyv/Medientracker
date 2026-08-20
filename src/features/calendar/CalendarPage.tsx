@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   addDays,
   addMonths,
@@ -26,6 +26,7 @@ export function CalendarPage() {
   const { media, loading, error } = useData();
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const entriesByDate = useMemo(() => buildEntriesByDate(media), [media]);
 
@@ -61,6 +62,25 @@ export function CalendarPage() {
           <button type="button" onClick={() => navigate(1)} aria-label="Weiter">
             ›
           </button>
+          <div className="date-picker-anchor">
+            <button
+              type="button"
+              className="date-picker-trigger"
+              aria-label="Datum auswählen"
+              aria-haspopup="dialog"
+              aria-expanded={pickerOpen}
+              onClick={() => setPickerOpen((open) => !open)}
+            >
+              <CalendarIcon />
+            </button>
+            {pickerOpen && (
+              <DatePickerPopup
+                date={selectedDate}
+                onSelect={setSelectedDate}
+                onClose={() => setPickerOpen(false)}
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -76,6 +96,86 @@ export function CalendarPage() {
 // Formats a date as the yyyy-MM-dd key used to index entriesByDate.
 function toKey(date: Date): string {
   return format(date, 'yyyy-MM-dd');
+}
+
+function CalendarIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <rect x="3" y="4.5" width="18" height="16" rx="2" />
+      <line x1="3" y1="9.5" x2="21" y2="9.5" />
+      <line x1="8" y1="2.5" x2="8" y2="6.5" />
+      <line x1="16" y1="2.5" x2="16" y2="6.5" />
+    </svg>
+  );
+}
+
+// Small month picker popup that lets the user jump directly to any date.
+function DatePickerPopup({
+  date,
+  onSelect,
+  onClose,
+}: {
+  date: Date;
+  onSelect: (day: Date) => void;
+  onClose: () => void;
+}) {
+  const [viewDate, setViewDate] = useState(date);
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Closes the popup on an outside click or Escape, like a native dropdown/dialog.
+    function handlePointerDown(event: MouseEvent) {
+      if (popupRef.current && !popupRef.current.contains(event.target as Node)) onClose();
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  const monthStart = startOfMonth(viewDate);
+  const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const gridEnd = endOfWeek(endOfMonth(viewDate), { weekStartsOn: 1 });
+  const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
+
+  return (
+    <div className="date-picker-popup" role="dialog" aria-label="Datum auswählen" ref={popupRef}>
+      <div className="date-picker-header">
+        <button type="button" onClick={() => setViewDate((current) => addMonths(current, -1))} aria-label="Vorheriger Monat">
+          ‹
+        </button>
+        <span>{format(viewDate, 'MMMM yyyy', { locale: de })}</span>
+        <button type="button" onClick={() => setViewDate((current) => addMonths(current, 1))} aria-label="Nächster Monat">
+          ›
+        </button>
+      </div>
+      <div className="date-picker-weekdays">
+        {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((label) => (
+          <span key={label}>{label}</span>
+        ))}
+      </div>
+      <div className="date-picker-grid">
+        {days.map((day) => (
+          <button
+            key={toKey(day)}
+            type="button"
+            className={`date-picker-day ${isSameMonth(day, viewDate) ? '' : 'outside-month'} ${isSameDay(day, date) ? 'selected' : ''} ${isSameDay(day, new Date()) ? 'today' : ''}`}
+            onClick={() => {
+              onSelect(day);
+              onClose();
+            }}
+          >
+            {format(day, 'd')}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // Shows the entries for a single day.
@@ -123,9 +223,11 @@ function MonthView({
 
   return (
     <div className="month-view">
+      <h2 className="month-view-title">{format(date, 'MMMM yyyy', { locale: de })}</h2>
       <div className="month-grid">
         {days.map((day) => {
           const entries = entriesByDate.get(toKey(day)) ?? [];
+          // Deduplicated by medium name so each medium contributes only one dot, even with multiple entries that day.
           const mediaConsumed = new Map(entries.map((entry) => [entry.mediumName, entry.category]));
           return (
             <button

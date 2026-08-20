@@ -14,6 +14,7 @@ interface DataState {
   error: string | null;
   reload: () => void;
   createGroup: (category: Category, memberNames: string[], label: string) => void;
+  addToGroup: (id: string, memberNames: string[]) => void;
   deleteGroup: (id: string) => void;
 }
 
@@ -63,6 +64,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Adds media to an existing group by id and persists the updated list to local storage.
+  const addToGroup = useCallback((id: string, memberNames: string[]) => {
+    setGroups((current) => {
+      const next = current.map((group) =>
+        group.id === id
+          ? { ...group, memberNames: [...new Set([...group.memberNames, ...memberNames])] }
+          : group,
+      );
+      saveMediaGroups(next);
+      return next;
+    });
+  }, []);
+
   // Removes a group by id and persists the updated list to local storage.
   const deleteGroup = useCallback((id: string) => {
     setGroups((current) => {
@@ -74,13 +88,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const media = useMemo(() => applyMediaGroups(rawMedia, groups), [rawMedia, groups]);
 
-  return (
-    <DataContext.Provider
-      value={{ media, groups, loading, error, reload: () => setReloadCounter((n) => n + 1), createGroup, deleteGroup }}
-    >
-      {children}
-    </DataContext.Provider>
+  // Wrapped so the reload identity is stable and the memoized provider value below only changes when needed.
+  const reload = useCallback(() => setReloadCounter((n) => n + 1), []);
+
+  // Keeps the context value reference stable across renders so consumers don't re-render needlessly.
+  const value = useMemo(
+    () => ({ media, groups, loading, error, reload, createGroup, addToGroup, deleteGroup }),
+    [media, groups, loading, error, reload, createGroup, addToGroup, deleteGroup],
   );
+
+  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 
 export function useData(): DataState {

@@ -28,6 +28,7 @@ export function buildMedia(extractions: RawExtraction[]): Medium[] {
   return [...byName.values()];
 }
 
+// Picks the unit used by the majority of a book's entries, defaulting to chapters on a tie.
 function determineBookUnit(entries: DailyEntry[]): 'chapters' | 'pages' {
   const chapterCount = entries.filter((entry) => entry.unit === 'chapters').length;
   const pageCount = entries.filter((entry) => entry.unit === 'pages').length;
@@ -42,7 +43,9 @@ export function applyMediaGroups(media: Medium[], groups: MediaGroup[]): Medium[
   const result: Medium[] = [];
 
   for (const group of groups) {
-    const members = media.filter((medium) => medium.category === group.category && group.memberNames.includes(medium.name));
+    const members = media
+      .filter((medium) => medium.category === group.category && group.memberNames.includes(medium.name))
+      .sort((a, b) => a.name.localeCompare(b.name));
     if (members.length === 0) continue;
     for (const member of members) groupedNames.add(member.name);
 
@@ -52,6 +55,7 @@ export function applyMediaGroups(media: Medium[], groups: MediaGroup[]): Medium[
       category: group.category,
       entries,
       groupMembers: members.map((member) => member.name),
+      groupMemberDetails: members,
     };
     if (group.category === 'book') {
       combined.bookUnit = determineBookUnit(entries);

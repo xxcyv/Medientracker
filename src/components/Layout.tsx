@@ -37,6 +37,7 @@ export function Layout() {
       </main>
 
       <nav className="app-nav">
+        <NavLink to="/info">Info</NavLink>
         <NavLink to="/" end>
           Liste
         </NavLink>

@@ -5,38 +5,48 @@ Die App ist ein rein statisches React/Vite-Frontend und wird auf GitHub Pages ge
 
 ## Funktionen
 
+- **Info**: Kurze, in der App integrierte Einführung in alle Funktionen. Sie wird neuen Nutzern
+  automatisch direkt nach der ersten Anmeldung auf einem Gerät angezeigt und ist danach jederzeit
+  über den Menüpunkt "Info" erreichbar.
 - **Liste**: Übersicht aller getrackten Medien, per Tab nach Kategorie gefiltert (Videospiele,
-  Serien, Bücher, Filme, oder alle zusammen). Jeder Eintrag zeigt direkt seine Kennzahl passend zur
-  Kategorie an – Gesamtspielzeit bei Spielen, Anzahl geschauter Folgen bei Serien, gelesene Kapitel
-  oder Seiten bei Büchern, Anzahl der Sichtungen bei Filmen. Ein Klick auf einen Eintrag klappt
-  Detailinfos wie konsumierte Tage, Durchschnitt pro Tag und die Jahre, in denen das Medium
-  konsumiert wurde, auf. Über den "Gruppieren"-Modus lassen sich mehrere Medien einer Kategorie
-  (z.B. die Bände einer Buchreihe oder Staffeln einer Serie) zu einem gemeinsamen Eintrag mit einem
-  selbst vergebenen Namen zusammenfassen; ihre Werte werden dann addiert dargestellt. Eine
-  Gruppierung lässt sich jederzeit wieder in ihre einzelnen Medien auflösen. Gruppen werden nur
-  lokal im Browser gespeichert (`localStorage`) und nicht in der Google-Tabelle abgelegt, sind also
+  Serien, Bücher, Filme oder alle zusammen). Jeder Eintrag zeigt direkt seine Kennzahl passend zur
+  Kategorie an: Gesamtspielzeit bei Spielen, Anzahl geschauter Folgen bei Serien, gelesene Kapitel
+  oder Seiten bei Büchern und Anzahl der Sichtungen bei Filmen.  
+  Ein Klick auf einen Eintrag klappt Detailinfos wie konsumierte Tage, Durchschnitt pro Tag und die Jahre, in denen das Medium
+  konsumiert wurde, auf. Über das Lupensymbol lässt sich die Liste per Volltextsuche einschränken. Groß- und Kleinschreibung wird dabei ignoriert.  
+  Über den "Gruppieren"-Modus lassen sich
+  mehrere Medien einer Kategorie (z.B. die Bände einer Buchreihe oder Staffeln einer Serie) zu
+  einem gemeinsamen Eintrag mit einem selbst vergebenen Namen zusammenfassen oder nachträglich zu
+  einer bestehenden Gruppe hinzufügen; ihre Werte werden dann addiert dargestellt und fließen gemeinsam in Statistiken ein. Eine Gruppierung
+  lässt sich jederzeit wieder in ihre einzelnen Medien auflösen. Gruppen werden nur lokal im
+  Browser gespeichert (`localStorage`) und nicht in der Google-Tabelle abgelegt, sind also
   gerätespezifisch.
 - **Kalender**: Zeigt an, was an welchem Tag konsumiert wurde – wahlweise als Tages-, Wochen- oder
   Monatsansicht. Jeder Tag mit Einträgen listet die betroffenen Medien mit ihrer jeweiligen
-  Tagesmenge (z.B. Spielzeit, Anzahl gelesener Kapitel oder geschauter Folgen) auf, farblich nach
+  Tagesmenge auf, farblich nach
   Kategorie hervorgehoben. Über Pfeiltasten lässt sich zum vorherigen bzw. nächsten Zeitraum
   springen, ein "Heute"-Button kehrt direkt zum aktuellen Datum zurück.
-- **Statistiken**: Stellt den Konsum als Balkendiagramm dar und lässt sich nach Kategorie sowie
-  Zeitraum filtern – etwa die letzten 7 Tage, der aktuelle Monat, die letzten 3 Monate, ein
-  bestimmtes Jahr oder die gesamte Historie. In der Jahresansicht kann die Aufteilung der Balken
-  zusätzlich zwischen Monat, Kalenderwoche und Tag umgeschaltet werden, um Trends unterschiedlich
-  fein aufzulösen.
+- **Statistiken**: Stellt den Konsum wahlweise als Balken- oder Kreisdiagramm dar (beim
+  Kreisdiagramm werden die Werte als Prozentanteile angezeigt) und lässt sich nach Kategorie sowie
+  Zeitraum filtern.  
+  In der Übersicht lässt sich zusätzlich begrenzen, wie
+  viele der am stärksten genutzten Medien angezeigt werden (Top 5/10/15 oder alle).  
+  Bücher mit
+  unterschiedlichen Einheiten (Kapitel bzw. Seiten) werden dabei automatisch in getrennte
+  Diagrammabschnitte aufgeteilt, da ihre Werte nicht direkt vergleichbar sind.  
+  In der Jahresübersicht
+  kann die Aufteilung der Balken zusätzlich zwischen Monat, Kalenderwoche und Tag umgeschaltet
+  werden, um Trends unterschiedlich fein aufzulösen.
 - **Export**: Erstellt aus den Gesamtwerten aller Medien einer gewählten Kategorie und eines
-  gewählten Zeitraums (einzelnes Jahr oder gesamte Historie) eine lesbare Textliste, die sich mit
-  einem Klick als `.txt`-Datei herunterladen lässt, z.B. um sie andernorts zu archivieren oder zu
+  gewählten Zeitraums eine lesbare Textliste, die sich als `.txt`-Datei herunterladen lässt, z.B. um sie andernorts zu archivieren oder zu
   teilen.
 - **Legacy-Einträge**: Videospielzeiten aus der Zeit vor der taggenauen Erfassung können über ein
-  separates "Legacy"-Tabellenblatt ohne exakte Daten eingepflegt werden – pro Zeile nur mit den
-  betroffenen Jahren und der Gesamtzahl an Tagen. Diese Einträge fließen in die Gesamtspielzeit und
+  separates "Legacy"-Tabellenblatt ohne exakte Daten eingepflegt werden. Dabei besitzt jede Zeile nur die betroffenen Jahre und die Gesamtzahl an Tagen.  
+  Diese Einträge fließen in die Gesamtspielzeit und
   die Liste der konsumierten Jahre eines Mediums ein, tauchen aber mangels Datum nicht im Kalender
   auf und werden bei Export und Statistiken nicht in zeitlich eingeschränkten Zeiträumen berücksichtigt.
 - **Tag-/Nacht-Modus**: Die Oberfläche übernimmt beim Start automatisch die Systemeinstellung des
-  Geräts und lässt sich jederzeit über einen Button im Header manuell umschalten.
+  Geräts, lässt sich aber jederzeit über einen Button im Header manuell umschalten.
 - **Google-Anmeldung**: Der Zugriff auf die Daten erfolgt ausschließlich über eine Anmeldung mit
   einem Google-Konto, das lesenden Zugriff auf die konfigurierte Tabelle hat. Es gibt keine eigene
   Nutzerverwaltung und keine Speicherung von Zugangsdaten durch die App.

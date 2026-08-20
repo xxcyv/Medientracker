@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useData } from '../../data/DataContext';
 import { useCategoryFilter } from '../../state/CategoryFilterContext';
 import { ALL_CATEGORIES, CATEGORY_LABELS } from '../../utils/format';
@@ -7,17 +7,39 @@ import { MediaListItem } from './MediaListItem';
 
 /** Overview of all tracked media, grouped by category, with each medium's headline statistic. */
 export function MediaListPage() {
-  const { media, loading, error, groups, createGroup, deleteGroup } = useData();
+  const { media, loading, error, groups, createGroup, addToGroup, deleteGroup } = useData();
   const { listCategory: activeCategory, setListCategory: setActiveCategory } = useCategoryFilter();
   const [groupingMode, setGroupingMode] = useState(false);
   const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set());
   const [groupLabel, setGroupLabel] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Filters media by the active category and sorts alphabetically for display.
+  // Focuses the search field as soon as it appears, so typing works right after clicking the icon.
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
+
+
+  // Existing groups for the active category, offered as "add to group" targets while grouping.
+  const existingGroups = useMemo(
+    () => groups.filter((group) => group.category === activeCategory),
+    [groups, activeCategory],
+  );
+
+  // Exits grouping mode when the category filter is cleared, since grouping requires a category.
+  useEffect(() => {
+    if (activeCategory === 'all' && groupingMode) toggleGroupingMode();
+  }, [activeCategory]);
+
+  // Filters media by the active category and search term (case-insensitive substring match), then sorts alphabetically.
   const groupedMedia = useMemo(() => {
-    const filtered = activeCategory === 'all' ? media : media.filter((medium) => medium.category === activeCategory);
+    const byCategory = activeCategory === 'all' ? media : media.filter((medium) => medium.category === activeCategory);
+    const term = searchTerm.trim().toLowerCase();
+    const filtered = term ? byCategory.filter((medium) => medium.name.toLowerCase().includes(term)) : byCategory;
     return [...filtered].sort((a, b) => a.name.localeCompare(b.name));
-  }, [media, activeCategory]);
+  }, [media, activeCategory, searchTerm]);
 
   // Enters/exits grouping mode and resets any in-progress selection.
   function toggleGroupingMode() {
@@ -42,7 +64,13 @@ export function MediaListPage() {
     createGroup(activeCategory, [...selectedNames], groupLabel.trim());
     setSelectedNames(new Set());
     setGroupLabel('');
-    setGroupingMode(false);
+  }
+
+  // Adds all selected media to an already existing group.
+  function handleAddToGroup(groupId: string) {
+    if (selectedNames.size === 0) return;
+    addToGroup(groupId, [...selectedNames]);
+    setSelectedNames(new Set());
   }
 
   // Finds and deletes the underlying group that produced this synthetic grouped medium.
@@ -56,45 +84,88 @@ export function MediaListPage() {
 
   return (
     <div className="media-list-page">
-      <div className="category-filter">
-        <button type="button" className={activeCategory === 'all' ? 'active' : ''} onClick={() => setActiveCategory('all')}>
-          Alle
-        </button>
-        {ALL_CATEGORIES.map((category) => (
-          <button
-            key={category}
-            type="button"
-            className={activeCategory === category ? 'active' : ''}
-            onClick={() => setActiveCategory(category)}
-          >
-            {CATEGORY_LABELS[category]}
-          </button>
-        ))}
-        <button
-          type="button"
-          className={groupingMode ? 'active' : ''}
-          disabled={activeCategory === 'all'}
-          title={activeCategory === 'all' ? 'Zum Gruppieren zuerst eine Kategorie auswählen' : undefined}
-          onClick={toggleGroupingMode}
-        >
-          Gruppieren
-        </button>
-      </div>
+      <div className="list-toolbar">
+        <div className="list-toolbar-row">
+          <div className="category-filter">
+            <button type="button" className={activeCategory === 'all' ? 'active' : ''} onClick={() => setActiveCategory('all')}>
+              Alle
+            </button>
+            {ALL_CATEGORIES.map((category) => (
+              <button
+                key={category}
+                type="button"
+                className={activeCategory === category ? 'active' : ''}
+                onClick={() => setActiveCategory(category)}
+              >
+                {CATEGORY_LABELS[category]}
+              </button>
+            ))}
+          </div>
 
-      {groupingMode && (
-        <div className="grouping-bar">
-          <span>{selectedNames.size} ausgewählt</span>
-          <input
-            type="text"
-            placeholder="Name der Gruppe"
-            value={groupLabel}
-            onChange={(event) => setGroupLabel(event.target.value)}
-          />
-          <button type="button" onClick={handleCreateGroup} disabled={selectedNames.size < 2 || !groupLabel.trim()}>
-            Gruppe erstellen
-          </button>
+          {activeCategory !== 'all' && (
+            <button
+              type="button"
+              className={`grouping-toggle${groupingMode ? ' active' : ''}`}
+              onClick={toggleGroupingMode}
+            >
+              Gruppieren
+            </button>
+          )}
+
+          {searchOpen ? (
+            <input
+              type="search"
+              ref={searchInputRef}
+              className="list-search-input"
+              placeholder="Suchen…"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              onBlur={() => {
+                if (!searchTerm.trim()) setSearchOpen(false);
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              className="list-search-toggle"
+              aria-label="Suchen"
+              onClick={() => setSearchOpen(true)}
+            >
+              🔍
+            </button>
+          )}
         </div>
-      )}
+
+        {groupingMode && (
+          <div className="grouping-bar">
+            <span>{selectedNames.size} ausgewählt</span>
+            <input
+              type="text"
+              placeholder="Name der neuen Gruppe"
+              value={groupLabel}
+              onChange={(event) => setGroupLabel(event.target.value)}
+            />
+            <button type="button" onClick={handleCreateGroup} disabled={selectedNames.size < 2 || !groupLabel.trim()}>
+              Gruppe erstellen
+            </button>
+            {existingGroups.length > 0 && (
+              <div className="grouping-bar-existing">
+                <span>Zu Gruppe hinzufügen:</span>
+                {existingGroups.map((group) => (
+                  <button
+                    key={group.id}
+                    type="button"
+                    onClick={() => handleAddToGroup(group.id)}
+                    disabled={selectedNames.size === 0}
+                  >
+                    {group.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <ul className="media-list">
         {groupedMedia.map((medium) => (

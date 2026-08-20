@@ -31,6 +31,11 @@
   --border: #2c2c36;
   --accent: #7b93ff;
   --accent-contrast: #10101a;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 
 * {
@@ -49,6 +54,13 @@ input,
 textarea {
   font: inherit;
   color: inherit;
+}
+
+select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
 }
 
 button {
@@ -146,16 +158,52 @@ button.active {
 }
 
 /* Media list */
-.category-filter {
+.list-toolbar {
   position: sticky;
   top: 0;
   z-index: 10;
+  background: var(--bg);
+}
+
+.list-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 0;
+}
+
+.category-filter {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  padding: 0.75rem 0;
-  margin-bottom: 0.25rem;
+}
+
+.grouping-toggle {
+  border-left: 2px solid var(--border);
+  padding-left: 0.75rem;
+  margin-left: 0.25rem;
+}
+
+.list-search-input {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
   background: var(--bg);
+  min-width: 160px;
+  margin-left: auto;
+}
+
+.list-search-toggle {
+  margin-left: auto;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  line-height: 1;
+  font-size: 1rem;
+  cursor: pointer;
 }
 
 .media-list {
@@ -203,6 +251,10 @@ button.active {
   cursor: pointer;
 }
 
+.media-name {
+  user-select: text;
+}
+
 .media-main-stat {
   color: var(--accent);
   font-weight: 600;
@@ -247,6 +299,57 @@ button.active {
   font-size: 0.85rem;
 }
 
+.media-group-member-stats {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.media-group-member-stats-title {
+  margin: 0 0 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.media-group-member-stats ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.media-group-member-stats li {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cat-color, var(--surface)) 5%, var(--surface));
+}
+
+.media-group-member-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.media-group-member-stats dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem 1rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+}
+
+.media-group-member-stats dt {
+  color: var(--text-muted);
+}
+
+.media-group-member-stats dd {
+  margin: 0;
+  text-align: right;
+}
+
 .grouping-bar {
   display: flex;
   flex-wrap: wrap;
@@ -254,8 +357,8 @@ button.active {
   gap: 0.5rem;
   padding: 0.75rem;
   margin-bottom: 0.75rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border: 1px solid var(--accent);
   border-radius: 10px;
 }
 
@@ -266,6 +369,16 @@ button.active {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg);
+}
+
+.grouping-bar-existing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
 }
 
 /* Calendar */
@@ -281,6 +394,76 @@ button.active {
 .calendar-navigation {
   display: flex;
   gap: 0.4rem;
+}
+
+.date-picker-anchor {
+  position: relative;
+}
+
+.date-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.date-picker-popup {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 10;
+  width: 260px;
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.date-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.date-picker-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  margin-bottom: 0.25rem;
+}
+
+.date-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.date-picker-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: transparent;
+  padding: 0;
+  font-size: 0.85rem;
+}
+
+.date-picker-day.outside-month {
+  opacity: 0.4;
+}
+
+.date-picker-day.today {
+  border: 1px solid var(--border);
+}
+
+.date-picker-day.selected {
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .day-entries {
@@ -332,6 +515,17 @@ button.active {
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
+}
+
+.week-day h3 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.month-view-title {
+  margin: 0 0 0.75rem;
+  text-align: center;
 }
 
 .month-grid {
@@ -415,22 +609,34 @@ button.active {
   margin-bottom: 1rem;
 }
 
-/* Larger screens: constrain and center content, widen week view into columns. */
+/* Info page */
+.info-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.info-section h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.info-section p {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.filters-chart-section + .filters-chart-section {
+  margin-top: 2rem;
+}
+
+.filters-chart-section h3 {
+  margin: 0 0 0.5rem;
+}
+
+/* Larger screens: constrain and center content. */
 @media (min-width: 768px) {
-  .week-view {
-    grid-template-columns: none;
-    grid-template-rows: auto 1fr;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-    align-items: start;
-  }
-
-  /* Let each day's heading and entry list become direct grid items, so all
-     headings share row 1 and all lists share row 2 and start at the same height. */
-  .week-day {
-    display: contents;
-  }
-
   /* Cap the calendar grid width so day cells stay compact instead of stretching across the page. */
   .month-grid {
     max-width: 480px;

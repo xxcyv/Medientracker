@@ -31,6 +31,8 @@ export interface Medium {
   bookUnit?: 'chapters' | 'pages';
   /** Set only on synthetic media produced by grouping; lists the original names that were merged. */
   groupMembers?: string[];
+  /** Set only on synthetic media produced by grouping; the original members, for per-member stats. */
+  groupMemberDetails?: Medium[];
 }
 
 /** User-defined grouping of several same-category media into one combined entry for lists and stats. */

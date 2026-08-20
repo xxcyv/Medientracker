@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
-import { Bar } from 'react-chartjs-2';
+import { useEffect, useMemo, useState } from 'react';
+import { Bar, Pie } from 'react-chartjs-2';
 import {
+  ArcElement,
   BarElement,
   CategoryScale,
   Chart as ChartJS,
@@ -27,15 +28,17 @@ import {
 } from 'date-fns';
 import { useData } from '../../data/DataContext';
 import { useCategoryFilter } from '../../state/CategoryFilterContext';
+import { useTheme } from '../../theme/ThemeContext';
 import { ALL_CATEGORIES, CATEGORY_LABELS, formatMinutes } from '../../utils/format';
 import { CATEGORY_CHART_COLORS } from '../../utils/categoryColors';
 import { asyncStateView } from '../../components/AsyncState';
 import type { Category, Medium } from '../../sheets/types';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
 type Preset = 'last7Days' | 'thisMonth' | 'last3Months' | 'allTime' | 'custom' | `year-${number}`;
 
+// Resolves a named preset into its concrete from/to date range.
 function presetRange(preset: Exclude<Preset, 'custom'>): { from: Date; to: Date } {
   const now = new Date();
   if (preset.startsWith('year-')) {
@@ -52,6 +55,41 @@ const MONTH_LABELS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', '
 
 type Statistic = 'overview' | 'yearly';
 type Granularity = 'month' | 'week' | 'day';
+type EntryLimit = 5 | 10 | 15 | 'all';
+const ENTRY_LIMIT_OPTIONS: EntryLimit[] = [5, 10, 15, 'all'];
+type ChartType = 'bar' | 'pie';
+
+/** Generates N evenly distinguishable colors (golden-angle hue rotation) for pie slices that don't already have a fixed category color. */
+function generateSlicePalette(count: number): string[] {
+  return Array.from({ length: count }, (_, index) => `hsl(${Math.round((index * 137.508) % 360)}, 65%, 55%)`);
+}
+
+/** Converts raw values into percentages of their total, for the pie chart view. */
+function toPercentages(values: number[], total: number): number[] {
+  return values.map((value) => (total > 0 ? (value / total) * 100 : 0));
+}
+
+// Tooltip formatter shared by all pie charts, showing each slice's percentage share.
+const PIE_TOOLTIP = {
+  callbacks: { label: (context: { label?: string; parsed?: number }) => `${context.label}: ${(context.parsed ?? 0).toFixed(1)}%` },
+};
+
+/** One overview bar chart's worth of data; `title` is set when a category was split into sub-charts (e.g. book units). */
+type ChartSection = {
+  key: string;
+  title?: string;
+  labels: string[];
+  values: number[];
+  valueLabel: string;
+};
+
+/** One yearly bar chart's worth of data; `title` is set when a category was split into sub-charts (e.g. book units). */
+type YearlySection = {
+  key: string;
+  title?: string;
+  datasets: { label: string; data: number[]; backgroundColor: string | string[] }[];
+  valueLabel: string;
+};
 
 /** Number of buckets the yearly chart is split into for a given year and granularity. */
 function bucketCount(year: number, granularity: Granularity): number {
@@ -103,17 +141,33 @@ function valueLabelForCategory(category: Category, filteredMedia: Medium[]): str
   }
 }
 
+/** Splits books into chapter- and page-tracked groups; only returns two groups if both are non-empty (else null). */
+function splitBooksByUnit(books: Medium[]): { chapters: Medium[]; pages: Medium[] } | null {
+  const chapters = books.filter((medium) => medium.bookUnit === 'chapters');
+  const pages = books.filter((medium) => medium.bookUnit === 'pages');
+  return chapters.length > 0 && pages.length > 0 ? { chapters, pages } : null;
+}
+
 /** Lets the user filter tracked entries by category and time range and view the results as a chart. */
 export function FiltersPage() {
   const { media, loading, error } = useData();
   const { overviewCategory: category, setOverviewCategory: setCategory, yearlyCategory, setYearlyCategory } =
     useCategoryFilter();
+  const { theme } = useTheme();
   const [statistic, setStatistic] = useState<Statistic>('overview');
+  const [chartType, setChartType] = useState<ChartType>('bar');
+
+  // Chart.js draws to a canvas, so it can't pick up CSS variables; keep its label/grid colors in sync with the theme.
+  useEffect(() => {
+    ChartJS.defaults.color = theme === 'dark' ? '#eceef2' : '#1b1b1f';
+    ChartJS.defaults.borderColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)';
+  }, [theme]);
   const [preset, setPreset] = useState<Preset>('thisMonth');
   const [customFrom, setCustomFrom] = useState(() => format(subDays(new Date(), 6), 'yyyy-MM-dd'));
   const [customTo, setCustomTo] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [granularity, setGranularity] = useState<Granularity>('month');
+  const [entryLimit, setEntryLimit] = useState<EntryLimit>(15);
 
   // Resolves the active preset (or the custom date inputs) into a concrete from/to date range.
   const range = useMemo(() => {
@@ -149,8 +203,34 @@ export function FiltersPage() {
   // Falls back to the most recent available year if the user hasn't picked one yet.
   const effectiveYear = selectedYear ?? availableYears[0] ?? new Date().getFullYear();
 
-  // Builds the overview chart data (labels/values) for the selected category and date range.
-  const chartData = useMemo(() => {
+  // Builds one bar-chart's worth of labels/values/totals for the given media, optionally under a sub-heading.
+  function buildOverviewSection(mediaGroup: Medium[], cat: Category, title?: string): ChartSection {
+    const totalsByMedium = mediaGroup
+      .map((medium) => {
+        const total = medium.entries
+          .filter(
+            (entry) =>
+              entry.date && isWithinInterval(parseISO(entry.date), { start: startOfDay(range.from), end: endOfDay(range.to) }),
+          )
+          .reduce((sum, entry) => sum + entry.amount, 0);
+        return { name: medium.name, total };
+      })
+      .filter((item) => item.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, entryLimit === 'all' ? undefined : entryLimit);
+
+    return {
+      key: title ?? cat,
+      title,
+      labels: totalsByMedium.map((item) => item.name),
+      values: totalsByMedium.map((item) => item.total),
+      valueLabel: title ?? valueLabelForCategory(cat, mediaGroup),
+    };
+  }
+
+  // Builds the overview chart sections for the selected category and date range. Books are split
+  // into separate "Kapitel"/"Seiten" sections when both units occur, since their amounts aren't comparable.
+  const chartSections = useMemo<ChartSection[]>(() => {
     const filteredMedia = category === 'all' ? media : media.filter((medium) => medium.category === category);
 
     if (category === 'all') {
@@ -166,40 +246,55 @@ export function FiltersPage() {
           daysPerCategory.get(medium.category)?.add(entry.date);
         }
       }
-      return {
-        labels: ALL_CATEGORIES.map((cat) => CATEGORY_LABELS[cat]),
-        values: ALL_CATEGORIES.map((cat) => daysPerCategory.get(cat)?.size ?? 0),
-        valueLabel: 'Tage',
-      };
+      return [
+        {
+          key: 'all',
+          labels: ALL_CATEGORIES.map((cat) => CATEGORY_LABELS[cat]),
+          values: ALL_CATEGORIES.map((cat) => daysPerCategory.get(cat)?.size ?? 0),
+          valueLabel: 'Tage',
+        },
+      ];
     }
 
-    const totalsByMedium = filteredMedia
-      .map((medium) => {
-        const total = medium.entries
-          .filter(
-            (entry) =>
-              entry.date && isWithinInterval(parseISO(entry.date), { start: startOfDay(range.from), end: endOfDay(range.to) }),
-          )
-          .reduce((sum, entry) => sum + entry.amount, 0);
-        return { name: medium.name, total };
-      })
-      .filter((item) => item.total > 0)
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 15);
+    if (category === 'book') {
+      const split = splitBooksByUnit(filteredMedia);
+      if (split) {
+        return [
+          buildOverviewSection(split.chapters, category, 'Kapitel'),
+          buildOverviewSection(split.pages, category, 'Seiten'),
+        ];
+      }
+    }
 
-    return {
-      labels: totalsByMedium.map((item) => item.name),
-      values: totalsByMedium.map((item) => item.total),
-      valueLabel: valueLabelForCategory(category, filteredMedia),
-    };
-  }, [media, category, range]);
-
-  const totalSum = chartData.values.reduce((sum, value) => sum + value, 0);
+    return [buildOverviewSection(filteredMedia, category)];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [media, category, range, entryLimit]);
 
   const yearlyLabels = useMemo(() => bucketLabels(effectiveYear, granularity), [effectiveYear, granularity]);
 
-  // Builds the yearly chart data, bucketed by month/week/day for the selected year.
-  const yearlyChartData = useMemo(() => {
+  // Builds one bar-chart's worth of monthly/weekly/daily totals for the given media, optionally under a sub-heading.
+  function buildYearlySection(mediaGroup: Medium[], cat: Category, bucketsInYear: number, title?: string): YearlySection {
+    const totalsByBucket = Array<number>(bucketsInYear).fill(0);
+    for (const medium of mediaGroup) {
+      for (const entry of medium.entries) {
+        if (!entry.date) continue;
+        const date = parseISO(entry.date);
+        if (date.getFullYear() !== effectiveYear) continue;
+        totalsByBucket[bucketIndex(date, granularity, bucketsInYear)] += entry.amount;
+      }
+    }
+    const valueLabel = title ?? valueLabelForCategory(cat, mediaGroup);
+    return {
+      key: title ?? cat,
+      title,
+      datasets: [{ label: valueLabel, data: totalsByBucket, backgroundColor: CATEGORY_CHART_COLORS[cat] }],
+      valueLabel,
+    };
+  }
+
+  // Builds the yearly chart sections, bucketed by month/week/day for the selected year. Books are split
+  // into separate "Kapitel"/"Seiten" sections when both units occur, since their amounts aren't comparable.
+  const yearlySections = useMemo<YearlySection[]>(() => {
     const bucketsInYear = yearlyLabels.length;
 
     if (yearlyCategory === 'all') {
@@ -220,37 +315,34 @@ export function FiltersPage() {
           daysPerCategoryBucket.get(medium.category)?.[bucketIndex(date, granularity, bucketsInYear)].add(entry.date);
         }
       }
-      return {
-        datasets: ALL_CATEGORIES.map((cat) => ({
-          label: CATEGORY_LABELS[cat],
-          data: (daysPerCategoryBucket.get(cat) ?? []).map((days) => days.size),
-          backgroundColor: CATEGORY_CHART_COLORS[cat],
-        })),
-        valueLabel: 'Tage',
-      };
+      return [
+        {
+          key: 'all',
+          datasets: ALL_CATEGORIES.map((cat) => ({
+            label: CATEGORY_LABELS[cat],
+            data: (daysPerCategoryBucket.get(cat) ?? []).map((days) => days.size),
+            backgroundColor: CATEGORY_CHART_COLORS[cat],
+          })),
+          valueLabel: 'Tage',
+        },
+      ];
     }
 
     const filteredMedia = media.filter((medium) => medium.category === yearlyCategory);
-    const totalsByBucket = Array<number>(bucketsInYear).fill(0);
-    for (const medium of filteredMedia) {
-      for (const entry of medium.entries) {
-        if (!entry.date) continue;
-        const date = parseISO(entry.date);
-        if (date.getFullYear() !== effectiveYear) continue;
-        totalsByBucket[bucketIndex(date, granularity, bucketsInYear)] += entry.amount;
+
+    if (yearlyCategory === 'book') {
+      const split = splitBooksByUnit(filteredMedia);
+      if (split) {
+        return [
+          buildYearlySection(split.chapters, yearlyCategory, bucketsInYear, 'Kapitel'),
+          buildYearlySection(split.pages, yearlyCategory, bucketsInYear, 'Seiten'),
+        ];
       }
     }
-    const valueLabel = valueLabelForCategory(yearlyCategory, filteredMedia);
-    return {
-      datasets: [{ label: valueLabel, data: totalsByBucket, backgroundColor: CATEGORY_CHART_COLORS[yearlyCategory] }],
-      valueLabel,
-    };
-  }, [media, yearlyCategory, effectiveYear, granularity, yearlyLabels]);
 
-  const yearlyTotalSum = yearlyChartData.datasets.reduce(
-    (sum, dataset) => sum + dataset.data.reduce((inner, value) => inner + value, 0),
-    0,
-  );
+    return [buildYearlySection(filteredMedia, yearlyCategory, bucketsInYear)];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [media, yearlyCategory, effectiveYear, granularity, yearlyLabels]);
 
   const asyncState = asyncStateView(loading, error);
   if (asyncState) return asyncState;
@@ -263,6 +355,15 @@ export function FiltersPage() {
         </button>
         <button type="button" className={statistic === 'yearly' ? 'active' : ''} onClick={() => setStatistic('yearly')}>
           Jahresübersicht
+        </button>
+      </div>
+
+      <div className="statistic-tabs" role="tablist">
+        <button type="button" className={chartType === 'bar' ? 'active' : ''} onClick={() => setChartType('bar')}>
+          Balkendiagramm
+        </button>
+        <button type="button" className={chartType === 'pie' ? 'active' : ''} onClick={() => setChartType('pie')}>
+          Kreisdiagramm
         </button>
       </div>
 
@@ -317,34 +418,80 @@ export function FiltersPage() {
                 </label>
               </>
             )}
+            {category !== 'all' && (
+              <label>
+                Anzahl Einträge
+                <select
+                  value={entryLimit}
+                  onChange={(event) => setEntryLimit((event.target.value === 'all' ? 'all' : Number(event.target.value)) as EntryLimit)}
+                >
+                  {ENTRY_LIMIT_OPTIONS.map((limit) => (
+                    <option key={limit} value={limit}>
+                      {limit === 'all' ? 'Alle' : limit}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
 
-          <p className="filters-summary">
-            {category === 'game' ? formatMinutes(totalSum) : totalSum} {toInlineLabel(chartData.valueLabel)} insgesamt
-          </p>
+          {chartSections.map((section) => {
+            const sectionTotal = section.values.reduce((sum, value) => sum + value, 0);
+            return (
+              <div key={section.key} className="filters-chart-section">
+                {section.title && <h3>{section.title}</h3>}
+                <p className="filters-summary">
+                  {category === 'game' ? formatMinutes(sectionTotal) : sectionTotal} {toInlineLabel(section.valueLabel)} insgesamt
+                </p>
 
-          <Bar
-            data={{
-              labels: chartData.labels,
-              datasets: [
-                {
-                  label: chartData.valueLabel,
-                  data: chartData.values,
-                  backgroundColor:
-                    category === 'all' ? ALL_CATEGORIES.map((cat) => CATEGORY_CHART_COLORS[cat]) : CATEGORY_CHART_COLORS[category],
-                },
-              ],
-            }}
-            options={{
-              responsive: true,
-              plugins: {
-                legend: { display: false },
-                tooltip:
-                  category === 'game' ? { callbacks: { label: (context) => formatMinutes(context.parsed.y ?? 0) } } : undefined,
-              },
-              scales: category === 'game' ? { y: { ticks: { callback: (value) => formatMinutes(Number(value)) } } } : undefined,
-            }}
-          />
+                {chartType === 'bar' ? (
+                  <Bar
+                    data={{
+                      labels: section.labels,
+                      datasets: [
+                        {
+                          label: section.valueLabel,
+                          data: section.values,
+                          backgroundColor:
+                            category === 'all'
+                              ? ALL_CATEGORIES.map((cat) => CATEGORY_CHART_COLORS[cat])
+                              : CATEGORY_CHART_COLORS[category],
+                        },
+                      ],
+                    }}
+                    options={{
+                      responsive: true,
+                      plugins: {
+                        legend: { display: false },
+                        tooltip:
+                          category === 'game' ? { callbacks: { label: (context) => formatMinutes(context.parsed.y ?? 0) } } : undefined,
+                      },
+                      scales: category === 'game' ? { y: { ticks: { callback: (value) => formatMinutes(Number(value)) } } } : undefined,
+                    }}
+                  />
+                ) : (
+                  <Pie
+                    data={{
+                      labels: section.labels,
+                      datasets: [
+                        {
+                          data: toPercentages(section.values, sectionTotal),
+                          backgroundColor:
+                            category === 'all'
+                              ? ALL_CATEGORIES.map((cat) => CATEGORY_CHART_COLORS[cat])
+                              : generateSlicePalette(section.values.length),
+                        },
+                      ],
+                    }}
+                    options={{
+                      responsive: true,
+                      plugins: { legend: { display: true }, tooltip: PIE_TOOLTIP },
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
         </>
       )}
 
@@ -386,29 +533,68 @@ export function FiltersPage() {
             </label>
           </div>
 
-          <p className="filters-summary">
-            {yearlyCategory === 'game' ? formatMinutes(yearlyTotalSum) : yearlyTotalSum}{' '}
-            {toInlineLabel(yearlyChartData.valueLabel)} in {effectiveYear}
-          </p>
+          {yearlySections.map((section) => {
+            const sectionTotal = section.datasets.reduce(
+              (sum, dataset) => sum + dataset.data.reduce((inner, value) => inner + value, 0),
+              0,
+            );
+            // Pie view: with multiple datasets ("Alle" categories) each dataset becomes one slice (its yearly total);
+            // otherwise each bucket (month/week/day) of the single dataset becomes one slice.
+            const isMultiDataset = section.datasets.length > 1;
+            const pieLabels = isMultiDataset ? section.datasets.map((dataset) => dataset.label) : yearlyLabels;
+            const pieValues = isMultiDataset
+              ? section.datasets.map((dataset) => dataset.data.reduce((sum, value) => sum + value, 0))
+              : section.datasets[0]?.data ?? [];
+            const pieColors = isMultiDataset
+              ? section.datasets.map((dataset) => dataset.backgroundColor as string)
+              : generateSlicePalette(pieValues.length);
+            return (
+              <div key={section.key} className="filters-chart-section">
+                {section.title && <h3>{section.title}</h3>}
+                <p className="filters-summary">
+                  {yearlyCategory === 'game' ? formatMinutes(sectionTotal) : sectionTotal}{' '}
+                  {toInlineLabel(section.valueLabel)} in {effectiveYear}
+                </p>
 
-          <Bar
-            data={{
-              labels: yearlyLabels,
-              datasets: yearlyChartData.datasets,
-            }}
-            options={{
-              responsive: true,
-              plugins: {
-                legend: { display: yearlyCategory === 'all' },
-                tooltip:
-                  yearlyCategory === 'game'
-                    ? { callbacks: { label: (context) => formatMinutes(context.parsed.y ?? 0) } }
-                    : undefined,
-              },
-              scales:
-                yearlyCategory === 'game' ? { y: { ticks: { callback: (value) => formatMinutes(Number(value)) } } } : undefined,
-            }}
-          />
+                {chartType === 'bar' ? (
+                  <Bar
+                    data={{
+                      labels: yearlyLabels,
+                      datasets: section.datasets,
+                    }}
+                    options={{
+                      responsive: true,
+                      plugins: {
+                        legend: { display: yearlyCategory === 'all' },
+                        tooltip:
+                          yearlyCategory === 'game'
+                            ? { callbacks: { label: (context) => formatMinutes(context.parsed.y ?? 0) } }
+                            : undefined,
+                      },
+                      scales:
+                        yearlyCategory === 'game' ? { y: { ticks: { callback: (value) => formatMinutes(Number(value)) } } } : undefined,
+                    }}
+                  />
+                ) : (
+                  <Pie
+                    data={{
+                      labels: pieLabels,
+                      datasets: [
+                        {
+                          data: toPercentages(pieValues, sectionTotal),
+                          backgroundColor: pieColors,
+                        },
+                      ],
+                    }}
+                    options={{
+                      responsive: true,
+                      plugins: { legend: { display: true }, tooltip: PIE_TOOLTIP },
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
         </>
       )}
     </div>

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { googleClientId } from '../config/env';
 
 // Scope needed to read the tracking spreadsheet via the Google Sheets REST API.
@@ -97,17 +97,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Starts the interactive Google consent flow to obtain a fresh access token.
-  function signIn() {
+  const signIn = useCallback(() => {
     setError(null);
     if (!tokenClient) {
       setError('Google Identity Services ist noch nicht bereit.');
       return;
     }
     tokenClient.requestAccessToken({ prompt: 'consent' });
-  }
+  }, [tokenClient]);
 
   // Revokes the current access token with Google and clears the local session state.
-  async function signOut() {
+  const signOut = useCallback(async () => {
     if (accessToken && window.google?.accounts.oauth2) {
       await new Promise<void>((resolve) => {
         window.google.accounts.oauth2.revoke(accessToken, () => resolve());
@@ -115,13 +115,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setAccessToken(null);
     setUser(null);
-  }
+  }, [accessToken]);
 
-  return (
-    <AuthContext.Provider value={{ user, accessToken, loading, error, signIn, signOut }}>
-      {children}
-    </AuthContext.Provider>
+  // Keeps the context value reference stable across renders so consumers don't re-render needlessly.
+  const value = useMemo(
+    () => ({ user, accessToken, loading, error, signIn, signOut }),
+    [user, accessToken, loading, error, signIn, signOut],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthState {

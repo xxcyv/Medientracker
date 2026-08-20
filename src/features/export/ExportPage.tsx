@@ -1,15 +1,20 @@
 import { useMemo, useState } from 'react';
 import { useData } from '../../data/DataContext';
 import { ALL_CATEGORIES, CATEGORY_LABELS } from '../../utils/format';
-import { buildExportFilename, buildExportLines, downloadTextFile } from '../../utils/export';
+import { buildExportFilename, buildExportLines, downloadTextFile, type ExportRange } from '../../utils/export';
 import { asyncStateView } from '../../components/AsyncState';
 import type { Category } from '../../sheets/types';
+
+type RangeMode = 'all' | 'year' | 'custom';
 
 /** Lets the user export every medium's total statistic for one category and time range as a .txt file. */
 export function ExportPage() {
   const { media, loading, error } = useData();
   const [category, setCategory] = useState<Category>('game');
-  const [year, setYear] = useState<number | 'all'>('all');
+  const [rangeMode, setRangeMode] = useState<RangeMode>('all');
+  const [year, setYear] = useState<number | null>(null);
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
 
   // Collects the years that have data for the selected category, newest first.
   const availableYears = useMemo(() => {
@@ -23,17 +28,26 @@ export function ExportPage() {
     return [...years].sort((a, b) => b - a);
   }, [media, category]);
 
-  const lines = useMemo(() => buildExportLines(media, category, year), [media, category, year]);
+  // Resolves the current mode and its inputs into the concrete range passed to the export helpers.
+  const range = useMemo<ExportRange>(() => {
+    if (rangeMode === 'year') return year ?? availableYears[0] ?? 'all';
+    if (rangeMode === 'custom' && customFrom && customTo) {
+      return customFrom <= customTo ? { start: customFrom, end: customTo } : { start: customTo, end: customFrom };
+    }
+    return 'all';
+  }, [rangeMode, year, availableYears, customFrom, customTo]);
+
+  const lines = useMemo(() => buildExportLines(media, category, range), [media, category, range]);
 
   // Resets the year filter since available years differ per category.
   function handleCategoryChange(next: Category) {
     setCategory(next);
-    setYear('all');
+    setYear(null);
   }
 
   // Triggers a browser download of the current export lines as a .txt file.
   function handleExport() {
-    downloadTextFile(buildExportFilename(category, year), lines.join('\n'));
+    downloadTextFile(buildExportFilename(category, range), lines.join('\n'));
   }
 
   const asyncState = asyncStateView(loading, error);
@@ -54,18 +68,36 @@ export function ExportPage() {
         </label>
         <label>
           Zeitraum
-          <select
-            value={year}
-            onChange={(event) => setYear(event.target.value === 'all' ? 'all' : Number(event.target.value))}
-          >
+          <select value={rangeMode} onChange={(event) => setRangeMode(event.target.value as RangeMode)}>
             <option value="all">Alle Jahre</option>
-            {availableYears.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
+            <option value="year">Einzelnes Jahr</option>
+            <option value="custom">Eigener Zeitraum</option>
           </select>
         </label>
+        {rangeMode === 'year' && (
+          <label>
+            Jahr
+            <select value={year ?? availableYears[0] ?? ''} onChange={(event) => setYear(Number(event.target.value))}>
+              {availableYears.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {rangeMode === 'custom' && (
+          <label>
+            Von
+            <input type="date" value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} />
+          </label>
+        )}
+        {rangeMode === 'custom' && (
+          <label>
+            Bis
+            <input type="date" value={customTo} onChange={(event) => setCustomTo(event.target.value)} />
+          </label>
+        )}
       </div>
 
       <p className="filters-summary">{lines.length} Medien im gewählten Zeitraum</p>
@@ -76,3 +108,4 @@ export function ExportPage() {
     </div>
   );
 }
+
